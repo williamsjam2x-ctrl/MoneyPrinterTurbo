@@ -26,7 +26,11 @@ Set these environment variables in the runtime environment (or your hosting plat
 | `OPENAI_MODEL` | Exact OpenAI model ID |
 | `MPT_INTELLIGENCE_PROVIDER_ORDER` | Optional comma-separated order, e.g. `codecraft,apinex` |
 
-Default order is CodeCraft → APInex → OpenAI. Providers missing either a key or model ID are skipped. A provider error triggers fallback to the next configured provider. The router uses a 45-second request timeout, disables automatic SDK retries, caps output at 2,000 tokens, and limits combined prompt text to 30,000 characters. These limits reduce accidental runaway usage but do not guarantee that provider usage is free.
+Default order is CodeCraft → APInex → OpenAI. Providers missing either a key or model ID are skipped. A provider error triggers fallback to the next configured provider. Requests time out after 45 seconds, SDK retries are disabled, and combined prompt text is limited to 30,000 characters.
+
+### Output-token limits
+
+The router accepts a requested `max_output_tokens` from 1 to 2,048. CodeCraft documents that its API raises any `max_tokens` value below 2,048 to 2,048, so this router sends 2,048 when using CodeCraft—even if the caller asks for less. APInex and OpenAI receive the requested value. The result reports the `max_tokens` value sent, but providers may have their own behavior; this setting is not a guarantee of actual charges. Review provider pricing and usage before production use.
 
 ## Supported task labels
 
@@ -51,4 +55,4 @@ The caller supplies the actual instructions and source material. The router does
 
 ## Validation status
 
-The module includes mocked unit tests for normal responses, fallback, invalid input, and missing configuration. The tests have **not yet been executed in a real Python environment**, and no live API request or video generation has been run. The next phase is to run the test suite, configure keys only in a private runtime, make one low-token test request per provider, then wire the router into the workflow after compatibility is confirmed.
+Mocked unit tests cover normal responses, fallback, provider-specific token limits, invalid inputs, and missing configuration. The tests have **not yet been executed in a real Python environment**, and no live API request or video generation has been run. The next phase is to run the test suite, configure keys only in a private runtime, make one low-cost test request per provider, then wire the router into the workflow after compatibility is confirmed.
