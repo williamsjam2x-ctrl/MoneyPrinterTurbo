@@ -12,9 +12,10 @@ def _response(content: str):
     )
 
 
-def test_generate_text_uses_configured_provider(monkeypatch):
+def test_generate_text_uses_configured_provider_and_reports_sent_token_cap(monkeypatch):
     monkeypatch.setenv("CODECRAFT_API_KEY", "test-key")
     monkeypatch.setenv("CODECRAFT_MODEL", "test-model")
+    request_args = {}
 
     class FakeClient:
         def __init__(self, **kwargs):
@@ -22,7 +23,9 @@ def test_generate_text_uses_configured_provider(monkeypatch):
             assert kwargs["max_retries"] == 0
             self.chat = SimpleNamespace(
                 completions=SimpleNamespace(
-                    create=lambda **kwargs: _response("  Draft script  ")
+                    create=lambda **kwargs: (
+                        request_args.update(kwargs) or _response("  Draft script  ")
+                    )
                 )
             )
 
@@ -39,6 +42,9 @@ def test_generate_text_uses_configured_provider(monkeypatch):
     assert result.model == "test-model"
     assert result.prompt_tokens == 12
     assert result.completion_tokens == 7
+    # CodeCraft promotes max_tokens values below 2048, so be explicit and honest.
+    assert request_args["max_tokens"] == 2048
+    assert result.max_tokens_sent == 2048
 
 
 def test_generate_text_falls_back_after_provider_error(monkeypatch):
@@ -46,22 +52,21 @@ def test_generate_text_falls_back_after_provider_error(monkeypatch):
     monkeypatch.setenv("CODECRAFT_MODEL", "model-a")
     monkeypatch.setenv("APINEX_API_KEY", "apinex-key")
     monkeypatch.setenv("APINEX_MODEL", "model-b")
+    requests_seen = []
 
     class FakeClient:
         def __init__(self, **kwargs):
             self.base_url = kwargs["base_url"]
-            if self.base_url == "https://codecraftapi.com/v1":
-                self.chat = SimpleNamespace(
-                    completions=SimpleNamespace(
-                        create=lambda **kwargs: (_ for _ in ()).throw(TimeoutError())
-                    )
-                )
-            else:
-                self.chat = SimpleNamespace(
-                    completions=SimpleNamespace(
-                        create=lambda **kwargs: _response("Reviewed script")
-                    )
-                )
+
+        @property
+        def chat(self):
+            def create(**kwargs):
+                requests_seen.append((self.base_url, kwargs["max_tokens"]))
+                if self.base_url == "https://codecraftapi.com/v1":
+                    raise TimeoutError()
+                return _response("Reviewed script")
+
+            return SimpleNamespace(completions=SimpleNamespace(create=create))
 
     monkeypatch.setattr(router, "OpenAI", FakeClient)
     result = router.generate_text(
@@ -73,6 +78,40 @@ def test_generate_text_falls_back_after_provider_error(monkeypatch):
 
     assert result.provider == "apinex"
     assert result.content == "Reviewed script"
+    assert requests_seen == [
+        ("https://codecraftapi.com/v1", 2048),
+        ("https://api.apinex.bond/v1", 1200),
+    ]
+    assert result.max_tokens_sent == 1200
+
+
+def test_apinex_respects_a_lower_requested_token_cap(monkeypatch):
+    monkeypatch.setenv("APINEX_API_KEY", "apinex-key")
+    monkeypatch.setenv("APINEX_MODEL", "model-b")
+    request_args = {}
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            assert kwargs["base_url"] == "https://api.apinex.bond/v1"
+            self.chat = SimpleNamespace(
+                completions=SimpleNamespace(
+                    create=lambda **kwargs: (
+                        request_args.update(kwargs) or _response("Reviewed script")
+                    )
+                )
+            )
+
+    monkeypatch.setattr(router, "OpenAI", FakeClient)
+    result = router.generate_text(
+        task="script_review",
+        system_prompt="Review factual accuracy.",
+        user_prompt="A sample script.",
+        max_output_tokens=700,
+        provider_order=("apinex",),
+    )
+
+    assert request_args["max_tokens"] == 700
+    assert result.max_tokens_sent == 700
 
 
 @pytest.mark.parametrize(
@@ -92,14 +131,31 @@ def test_generate_text_falls_back_after_provider_error(monkeypatch):
                 "system_prompt": "",
                 "user_prompt": "Topic",
             },
-            "must be non-empty",
+            "non-empty strings",
+        ),
+        (
+            {
+                "task": "script_draft",
+                "system_prompt": None,
+                "user_prompt": "Topic",
+            },
+            "non-empty strings",
         ),
         (
             {
                 "task": "script_draft",
                 "system_prompt": "System",
                 "user_prompt": "Topic",
-                "max_output_tokens": 2001,
+                "max_output_tokens": 2049,
+            },
+            "max_output_tokens",
+        ),
+        (
+            {
+                "task": "script_draft",
+                "system_prompt": "System",
+                "user_prompt": "Topic",
+                "max_output_tokens": True,
             },
             "max_output_tokens",
         ),
@@ -110,17 +166,39 @@ def test_generate_text_rejects_invalid_requests(kwargs, message):
         router.generate_text(**kwargs)
 
 
+def test_generate_text_rejects_oversized_prompts():
+    with pytest.raises(ValueError, match="Combined prompt exceeds"):
+        router.generate_text(
+            task="script_draft",
+            system_prompt="a" * router.MAX_PROMPT_CHARS,
+            user_prompt="b",
+        )
+
+
 def test_generate_text_reports_missing_configuration(monkeypatch):
-    monkeypatch.delenv("CODECRAFT_API_KEY", raising=False)
-    monkeypatch.delenv("CODECRAFT_MODEL", raising=False)
-    monkeypatch.delenv("APINEX_API_KEY", raising=False)
-    monkeypatch.delenv("APINEX_MODEL", raising=False)
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("OPENAI_MODEL", raising=False)
+    for name in (
+        "CODECRAFT_API_KEY",
+        "CODECRAFT_MODEL",
+        "APINEX_API_KEY",
+        "APINEX_MODEL",
+        "OPENAI_API_KEY",
+        "OPENAI_MODEL",
+    ):
+        monkeypatch.delenv(name, raising=False)
 
     with pytest.raises(router.IntelligenceRouterError, match="No intelligence provider"):
         router.generate_text(
             task="topic_score",
             system_prompt="Score a topic.",
             user_prompt="Why AI automation matters.",
+        )
+
+
+def test_generate_text_rejects_unknown_provider_order():
+    with pytest.raises(ValueError, match="Unknown intelligence provider"):
+        router.generate_text(
+            task="topic_score",
+            system_prompt="Score a topic.",
+            user_prompt="AI automation",
+            provider_order=("unknown-provider",),
         )
