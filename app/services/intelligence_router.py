@@ -73,7 +73,17 @@ class IntelligenceRouterError(RuntimeError):
 
 def _provider_order(provider_order: Iterable[str] | None) -> tuple[str, ...]:
     if provider_order is not None:
-        requested = tuple(provider_order)
+        # Treat one provider ID as one item rather than iterating its characters.
+        raw_requested = (provider_order,) if isinstance(provider_order, str) else provider_order
+        try:
+            values = tuple(raw_requested)
+        except TypeError as exc:
+            raise ValueError("provider_order must be a provider ID or iterable of provider IDs.") from exc
+        if any(not isinstance(name, str) or not name.strip() for name in values):
+            raise ValueError("provider_order must contain only non-empty provider ID strings.")
+        requested = tuple(name.strip().lower() for name in values)
+        if not requested:
+            raise ValueError("provider_order must select at least one provider.")
     else:
         raw = os.getenv("MPT_INTELLIGENCE_PROVIDER_ORDER", "")
         requested = tuple(part.strip().lower() for part in raw.split(",") if part.strip())
@@ -115,8 +125,8 @@ def generate_text(
     with its o-series reasoning models. Sampling parameters are omitted unless
     model-specific support is known, to avoid incompatible-parameter failures.
     """
-    if task not in ALLOWED_TASKS:
-        raise ValueError(f"Unsupported intelligence task: {task}")
+    if not isinstance(task, str) or task not in ALLOWED_TASKS:
+        raise ValueError(f"Unsupported intelligence task: {task!r}")
     if (
         not isinstance(system_prompt, str)
         or not isinstance(user_prompt, str)
