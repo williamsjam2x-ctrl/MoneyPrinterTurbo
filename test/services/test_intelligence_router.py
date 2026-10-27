@@ -34,7 +34,7 @@ def test_generate_text_uses_configured_provider_and_reports_sent_token_cap(monke
         task="script_draft",
         system_prompt="Write a concise script.",
         user_prompt="Explain how AI automation saves time.",
-        provider_order=("codecraft",),
+        provider_order=" CODECRAFT ",
     )
 
     assert result.content == "Draft script"
@@ -236,4 +236,31 @@ def test_generate_text_rejects_unknown_provider_order():
             system_prompt="Score a topic.",
             user_prompt="AI automation",
             provider_order=("unknown-provider",),
+        )
+
+
+@pytest.mark.parametrize(
+    ("provider_order", "message"),
+    [
+        ([], "at least one provider"),
+        ([None], "non-empty provider ID strings"),
+        (42, "must be a provider ID or iterable"),
+    ],
+)
+def test_generate_text_rejects_malformed_provider_order(provider_order, message):
+    with pytest.raises(ValueError, match=message):
+        router.generate_text(
+            task="topic_score",
+            system_prompt="Score a topic.",
+            user_prompt="AI automation",
+            provider_order=provider_order,
+        )
+
+
+def test_generate_text_rejects_non_string_task():
+    with pytest.raises(ValueError, match="Unsupported intelligence task"):
+        router.generate_text(
+            task=[],
+            system_prompt="Score a topic.",
+            user_prompt="AI automation",
         )
