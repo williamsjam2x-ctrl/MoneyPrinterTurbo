@@ -111,6 +111,9 @@ def endpoint(settings: Mapping | None = None) -> seedance.SeedanceEndpoint:
         resolution=resolution,
         run_timeout=_bounded_seconds(values, "run_timeout", 1800, 60, 7200),
         poll_interval=_bounded_seconds(values, "poll_interval", 5, 0.5, 60),
+        # This integration sends a bearer token; do not inherit a global
+        # tls_verify=False setting for this remote credential-bearing endpoint.
+        verify_tls=True,
     )
 
 
