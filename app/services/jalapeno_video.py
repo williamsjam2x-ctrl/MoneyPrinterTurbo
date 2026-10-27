@@ -1,5 +1,6 @@
 """Jalapeno Cloud 视频配置；复用 Seedance 的异步任务与付费重试边界。"""
 
+import ipaddress
 import math
 import os
 from collections.abc import Mapping
@@ -43,8 +44,18 @@ def _bounded_seconds(values, suffix, default, minimum, maximum):
     return min(max(value, minimum), maximum) if math.isfinite(value) else default
 
 
+def _is_loopback_hostname(hostname: str) -> bool:
+    hostname = str(hostname or "").strip().rstrip(".").lower()
+    if hostname == "localhost" or hostname.endswith(".localhost"):
+        return True
+    try:
+        return ipaddress.ip_address(hostname).is_loopback
+    except ValueError:
+        return False
+
+
 def endpoint(settings: Mapping | None = None) -> seedance.SeedanceEndpoint:
-    """一次性校验并解析提交参数，非法地址在配音和付费提交前报错。"""
+    """Validate one immutable endpoint snapshot before audio or paid submission."""
     values = config.app if settings is None else settings
     key = get_api_key(values)
     if not key:
@@ -56,7 +67,7 @@ def endpoint(settings: Mapping | None = None) -> seedance.SeedanceEndpoint:
     )
     try:
         parts = urlsplit(base)
-        # urlsplit 不会主动校验端口；这里读取一次，避免配音后才发现地址非法。
+        # urlsplit does not validate the port until it is accessed.
         parts.port
     except ValueError as exc:
         raise JalapenoVideoError("Jalapeno Cloud video Base URL is invalid") from exc
@@ -71,7 +82,13 @@ def endpoint(settings: Mapping | None = None) -> seedance.SeedanceEndpoint:
         raise JalapenoVideoError(
             "Jalapeno Cloud video Base URL must be an HTTP(S) URL without credentials or query parameters"
         )
-    # 同时接受 Base URL 和活动页示例中的完整任务地址，保证只拼接一次路径。
+    # API keys are sent as Bearer credentials. Plain HTTP is permitted only for
+    # loopback development endpoints so a remote custom URL cannot expose a key.
+    if parts.scheme == "http" and not _is_loopback_hostname(parts.hostname):
+        raise JalapenoVideoError(
+            "Jalapeno Cloud video Base URL must use HTTPS for non-local hosts"
+        )
+    # Accept either the base URL or the full task endpoint, without duplicating its path.
     tasks_url = base if parts.path.endswith(TASKS_PATH) else base + TASKS_PATH
     model = str(values.get("jalapeno_video_model", "") or DEFAULT_MODEL).strip()
     if not model or len(model) > 200:
