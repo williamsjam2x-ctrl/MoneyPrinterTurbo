@@ -28,8 +28,8 @@ class TextResult:
     model: str
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
-    # The max_tokens value sent to the provider, not a guarantee of provider billing.
-    max_tokens_sent: int = 0
+    # Provider-specific output-token parameter value; not a guarantee of billing.
+    output_token_limit_sent: int = 0
 
 
 PROVIDERS: dict[str, ProviderConfig] = {
@@ -111,6 +111,9 @@ def generate_text(
     Fallback happens only after an actual request failure; unconfigured providers
     are skipped without making a network request. CodeCraft requires a minimum
     max_tokens request value of 2048, which is also the router's hard ceiling.
+    OpenAI receives max_completion_tokens because max_tokens is not compatible
+    with its o-series reasoning models. Sampling parameters are omitted unless
+    model-specific support is known, to avoid incompatible-parameter failures.
     """
     if task not in ALLOWED_TASKS:
         raise ValueError(f"Unsupported intelligence task: {task}")
@@ -150,14 +153,18 @@ def generate_text(
                 timeout=REQUEST_TIMEOUT_SECONDS,
                 max_retries=0,
             )
+            token_limit = (
+                {"max_completion_tokens": max_output_tokens}
+                if provider_id == "openai"
+                else {"max_tokens": max_tokens_sent}
+            )
             response = client.chat.completions.create(
                 model=model,
                 messages=[
                     {"role": "system", "content": f"Task: {task}.\n{system_prompt}"},
                     {"role": "user", "content": user_prompt},
                 ],
-                max_tokens=max_tokens_sent,
-                temperature=0.2,
+                **token_limit,
             )
             content = response.choices[0].message.content if response.choices else None
             if not isinstance(content, str) or not content.strip():
@@ -170,7 +177,7 @@ def generate_text(
                 model=model,
                 prompt_tokens=getattr(usage, "prompt_tokens", None),
                 completion_tokens=getattr(usage, "completion_tokens", None),
-                max_tokens_sent=max_tokens_sent,
+                output_token_limit_sent=max_tokens_sent,
             )
         except Exception as exc:  # noqa: BLE001 - fallback must cover provider SDK errors.
             # Keep diagnostics useful without logging request content or credentials.
