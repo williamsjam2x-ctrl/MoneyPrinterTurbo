@@ -30,7 +30,7 @@ Default order is CodeCraft → APInex → OpenAI. Providers missing either a key
 
 ### Output-token limits
 
-The router accepts a requested `max_output_tokens` from 1 to 2,048. CodeCraft documents that its API raises any `max_tokens` value below 2,048 to 2,048, so this router sends 2,048 when using CodeCraft—even if the caller asks for less. APInex and OpenAI receive the requested value. The result reports the `max_tokens` value sent, but providers may have their own behavior; this setting is not a guarantee of actual charges. Review provider pricing and usage before production use.
+The router accepts a requested `max_output_tokens` from 1 to 2,048. CodeCraft documents that its API raises any `max_tokens` value below 2,048 to 2,048, so this router sends 2,048 when using CodeCraft—even if the caller asks for less. APInex receives the requested value using `max_tokens`; OpenAI receives it using `max_completion_tokens`, which is the supported parameter for its reasoning models. The router omits `temperature` because model support differs between providers. The result reports the output-token-limit value sent, but provider behavior can differ; this setting is not a guarantee of actual charges. Review provider pricing and usage before production use.
 
 ## Supported task labels
 
