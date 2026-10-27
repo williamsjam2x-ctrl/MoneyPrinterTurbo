@@ -44,7 +44,8 @@ def test_generate_text_uses_configured_provider_and_reports_sent_token_cap(monke
     assert result.completion_tokens == 7
     # CodeCraft promotes max_tokens values below 2048, so be explicit and honest.
     assert request_args["max_tokens"] == 2048
-    assert result.max_tokens_sent == 2048
+    assert "temperature" not in request_args
+    assert result.output_token_limit_sent == 2048
 
 
 def test_generate_text_falls_back_after_provider_error(monkeypatch):
@@ -82,7 +83,8 @@ def test_generate_text_falls_back_after_provider_error(monkeypatch):
         ("https://codecraftapi.com/v1", 2048),
         ("https://api.apinex.bond/v1", 1200),
     ]
-    assert result.max_tokens_sent == 1200
+    assert result.output_token_limit_sent == 1200
+    assert all("temperature" not in (_, {}) for _ in [])
 
 
 def test_apinex_respects_a_lower_requested_token_cap(monkeypatch):
@@ -111,7 +113,7 @@ def test_apinex_respects_a_lower_requested_token_cap(monkeypatch):
     )
 
     assert request_args["max_tokens"] == 700
-    assert result.max_tokens_sent == 700
+    assert result.output_token_limit_sent == 700
 
 
 @pytest.mark.parametrize(
@@ -174,6 +176,39 @@ def test_generate_text_rejects_oversized_prompts():
             user_prompt="b",
         )
 
+
+
+
+def test_openai_uses_modern_completion_token_parameter(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
+    monkeypatch.setenv("OPENAI_MODEL", "reasoning-model")
+    request_args = {}
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            assert kwargs["base_url"] == "https://api.openai.com/v1"
+            self.chat = SimpleNamespace(
+                completions=SimpleNamespace(
+                    create=lambda **kwargs: (
+                        request_args.update(kwargs) or _response("OpenAI script")
+                    )
+                )
+            )
+
+    monkeypatch.setattr(router, "OpenAI", FakeClient)
+    result = router.generate_text(
+        task="script_draft",
+        system_prompt="Write a short script.",
+        user_prompt="Explain a safe workflow.",
+        max_output_tokens=800,
+        provider_order=("openai",),
+    )
+
+    assert request_args["max_completion_tokens"] == 800
+    assert "max_tokens" not in request_args
+    assert "temperature" not in request_args
+    assert result.output_token_limit_sent == 800
+    assert result.provider == "openai"
 
 def test_generate_text_reports_missing_configuration(monkeypatch):
     for name in (
