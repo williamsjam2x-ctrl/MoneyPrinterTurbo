@@ -28,6 +28,8 @@ class TextResult:
     model: str
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
+    # The max_tokens value sent to the provider, not a guarantee of provider billing.
+    max_tokens_sent: int = 0
 
 
 PROVIDERS: dict[str, ProviderConfig] = {
@@ -57,7 +59,11 @@ ALLOWED_TASKS = frozenset(
 DEFAULT_PROVIDER_ORDER = ("codecraft", "apinex", "openai")
 MAX_PROMPT_CHARS = 30_000
 DEFAULT_MAX_OUTPUT_TOKENS = 1_200
-MAX_OUTPUT_TOKENS = 2_000
+# CodeCraft documents that max_tokens values below 2048 are raised to 2048.
+# Keep the router-wide ceiling at that documented minimum so the provider cannot
+# silently exceed the cap this module claims to enforce.
+CODECRAFT_MIN_OUTPUT_TOKENS = 2_048
+MAX_OUTPUT_TOKENS = CODECRAFT_MIN_OUTPUT_TOKENS
 REQUEST_TIMEOUT_SECONDS = 45.0
 
 
@@ -103,16 +109,26 @@ def generate_text(
     Provider model IDs are intentionally supplied through environment variables:
     they must match the user's current provider dashboard. Keys are never logged.
     Fallback happens only after an actual request failure; unconfigured providers
-    are skipped without making a network request.
+    are skipped without making a network request. CodeCraft requires a minimum
+    max_tokens request value of 2048, which is also the router's hard ceiling.
     """
     if task not in ALLOWED_TASKS:
         raise ValueError(f"Unsupported intelligence task: {task}")
-    if not system_prompt.strip() or not user_prompt.strip():
-        raise ValueError("Both system_prompt and user_prompt must be non-empty.")
+    if (
+        not isinstance(system_prompt, str)
+        or not isinstance(user_prompt, str)
+        or not system_prompt.strip()
+        or not user_prompt.strip()
+    ):
+        raise ValueError("Both system_prompt and user_prompt must be non-empty strings.")
     if len(system_prompt) + len(user_prompt) > MAX_PROMPT_CHARS:
         raise ValueError(f"Combined prompt exceeds {MAX_PROMPT_CHARS} characters.")
-    if not 1 <= max_output_tokens <= MAX_OUTPUT_TOKENS:
-        raise ValueError(f"max_output_tokens must be between 1 and {MAX_OUTPUT_TOKENS}.")
+    if (
+        isinstance(max_output_tokens, bool)
+        or not isinstance(max_output_tokens, int)
+        or not 1 <= max_output_tokens <= MAX_OUTPUT_TOKENS
+    ):
+        raise ValueError(f"max_output_tokens must be an integer between 1 and {MAX_OUTPUT_TOKENS}.")
 
     failures: list[str] = []
     for provider_id in _provider_order(provider_order):
@@ -120,6 +136,13 @@ def generate_text(
         if configured is None:
             continue
         config, api_key, model = configured
+        # The CodeCraft API raises any lower max_tokens value to 2048. Send the
+        # same effective value explicitly so the router's request ceiling is clear.
+        max_tokens_sent = (
+            max(max_output_tokens, CODECRAFT_MIN_OUTPUT_TOKENS)
+            if provider_id == "codecraft"
+            else max_output_tokens
+        )
         try:
             client = OpenAI(
                 api_key=api_key,
@@ -133,7 +156,7 @@ def generate_text(
                     {"role": "system", "content": f"Task: {task}.\n{system_prompt}"},
                     {"role": "user", "content": user_prompt},
                 ],
-                max_tokens=max_output_tokens,
+                max_tokens=max_tokens_sent,
                 temperature=0.2,
             )
             content = response.choices[0].message.content if response.choices else None
@@ -147,6 +170,7 @@ def generate_text(
                 model=model,
                 prompt_tokens=getattr(usage, "prompt_tokens", None),
                 completion_tokens=getattr(usage, "completion_tokens", None),
+                max_tokens_sent=max_tokens_sent,
             )
         except Exception as exc:  # noqa: BLE001 - fallback must cover provider SDK errors.
             # Keep diagnostics useful without logging request content or credentials.
