@@ -62,6 +62,7 @@ def test_generate_text_falls_back_after_provider_error(monkeypatch):
         @property
         def chat(self):
             def create(**kwargs):
+                assert "temperature" not in kwargs
                 requests_seen.append((self.base_url, kwargs["max_tokens"]))
                 if self.base_url == "https://codecraftapi.com/v1":
                     raise TimeoutError()
@@ -84,7 +85,6 @@ def test_generate_text_falls_back_after_provider_error(monkeypatch):
         ("https://api.apinex.bond/v1", 1200),
     ]
     assert result.output_token_limit_sent == 1200
-    assert all("temperature" not in (_, {}) for _ in [])
 
 
 def test_apinex_respects_a_lower_requested_token_cap(monkeypatch):
