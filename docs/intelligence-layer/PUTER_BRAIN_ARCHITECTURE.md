@@ -5,7 +5,7 @@
 Puter.js is a good candidate for an optional, browser-side AI brain. It should not replace the Python video-production engine or be wired into the Python provider router as if it were an ordinary server API.
 
 MoneyPrinterTurbo currently has:
-- A Streamlit WebUI (pinned to Streamlit 1.59.1 in this branch).
+- A Streamlit WebUI. The upstream integration target currently pins Streamlit 1.66.1; the Puter component must be tested against that integrated version before release.
 - A FastAPI service with existing video and LLM routes.
 - A Python intelligence router prototype for CodeCraft, APINEX, and OpenAI.
 - An isolated Exa research adapter prototype.
