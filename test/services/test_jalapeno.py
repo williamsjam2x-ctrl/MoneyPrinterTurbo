@@ -170,6 +170,8 @@ def test_video_request_uses_explicit_endpoint_without_mutating_ark_config():
             "volcengine_seedance_api_key": "ark-only",
             "volcengine_seedance_model": "original-ark-model",
             "jalapeno_video_poll_interval": 1,
+            # This provider must verify remote HTTPS even if the global toggle is off.
+            "tls_verify": False,
         }
     )
     before = dict(config.app)
@@ -193,6 +195,8 @@ def test_video_request_uses_explicit_endpoint_without_mutating_ark_config():
     assert submit.call_count == 1
     assert submit.call_args.args[0] == provider.DEFAULT_BASE_URL + provider.TASKS_PATH
     assert submit.call_args.kwargs["headers"]["Authorization"] == "Bearer video-only"
+    assert submit.call_args.kwargs["verify"] is True
+    assert poll.call_args.kwargs["verify"] is True
     assert submit.call_args.kwargs["json"] == {
         "model": provider.DEFAULT_MODEL,
         "content": [{"type": "text", "text": "sunrise"}],

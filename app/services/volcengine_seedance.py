@@ -49,6 +49,8 @@ class SeedanceEndpoint:
     generate_audio: bool = False
     poll_interval: float = DEFAULT_POLL_INTERVAL_SECONDS
     run_timeout: float = DEFAULT_RUN_TIMEOUT_SECONDS
+    # Optional per-endpoint TLS override. None preserves the global config.
+    verify_tls: bool | None = None
 
 
 class VolcEngineSeedanceError(RuntimeError):
@@ -290,6 +292,11 @@ def generate_videos(
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
+    request_verify = (
+        endpoint.verify_tls
+        if endpoint is not None and endpoint.verify_tls is not None
+        else _tls_verify()
+    )
     tasks_url = (
         endpoint.tasks_url if endpoint
         else f"{_base_url()}/contents/generations/tasks"
@@ -309,7 +316,7 @@ def generate_videos(
             json=payload,
             headers=headers,
             proxies=config.proxy,
-            verify=_tls_verify(),
+            verify=request_verify,
             timeout=(30, 60),
             allow_redirects=False,
         )
@@ -351,7 +358,11 @@ def generate_videos(
     logger.info(f"{display_name} task created: id={task_id}")
 
     poll_options = (
-        {"run_timeout": endpoint.run_timeout, "poll_interval": endpoint.poll_interval}
+        {
+            "run_timeout": endpoint.run_timeout,
+            "poll_interval": endpoint.poll_interval,
+            "verify_tls": request_verify,
+        }
         if endpoint else {}
     )
     task = _wait_for_task(
@@ -398,6 +409,7 @@ def _wait_for_task(
     api_key: str,
     run_timeout: float | None = None,
     poll_interval: float | None = None,
+    verify_tls: bool | None = None,
 ) -> dict[str, Any] | None:
     deadline = time.monotonic() + (
         run_timeout if run_timeout is not None else _bounded_float(
@@ -436,7 +448,7 @@ def _wait_for_task(
                 f"{tasks_url}/{task_id}",
                 headers=headers,
                 proxies=config.proxy,
-                verify=_tls_verify(),
+                verify=_tls_verify() if verify_tls is None else verify_tls,
                 timeout=(phase_timeout, phase_timeout),
                 allow_redirects=False,
             )
