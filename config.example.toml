@@ -422,6 +422,16 @@ uberllm_api_key = ""
 uberllm_base_url = ""
 uberllm_model_name = ""
 
+# Coarena Model API. Uses the OpenAI-compatible Chat Completions endpoint.
+# Every prompt and response is stored by Coarena, regardless of the client's
+# store setting, and may be licensed in datasets. Do not send sensitive content.
+# Create a personal key with only the inference:write scope when possible.
+# API key: https://coarena.ai/account/api
+# Model list and API docs: https://coarena.ai/docs
+coarena_api_key = ""
+coarena_base_url = ""
+coarena_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""

@@ -524,6 +524,50 @@ class TestGenerateResponseTransportLimits(unittest.TestCase):
         )
 
 
+    def test_coarena_uses_server_side_openai_compatible_chat_completions(self):
+        """Coarena is called by the Python server using its private API key."""
+        config.app.update(
+            {
+                "llm_provider": "coarena",
+                "coarena_api_key": "server-only-test-key",
+                "coarena_model_name": "",
+                "coarena_base_url": "",
+            }
+        )
+        captured = {}
+        message = types.SimpleNamespace(content="Coarena test response")
+        completion = types.SimpleNamespace(
+            choices=[types.SimpleNamespace(message=message)]
+        )
+
+        def create(**kwargs):
+            captured.update(kwargs)
+            return completion
+
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(
+                completions=types.SimpleNamespace(create=create)
+            )
+        )
+
+        with (
+            patch.object(llm, "OpenAI", return_value=fake_client) as constructor,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("Reply with READY")
+
+        constructor.assert_called_once_with(
+            api_key="server-only-test-key",
+            base_url="https://coarena.ai/api/v1",
+        )
+        self.assertEqual(captured["model"], "claude-sonnet-5-5")
+        self.assertEqual(
+            captured["messages"],
+            [{"role": "user", "content": "Reply with READY"}],
+        )
+        self.assertEqual(result, "Coarena test response")
+
+
 class TestLiteLLMProvider(unittest.TestCase):
     def setUp(self):
         self.original_app_config = dict(config.app)
@@ -754,6 +798,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "cloudgpu",
                 "cheapaimodel",
                 "uberllm",
+                "coarena",
                 "ollama",
                 "claude_code",
                 "oneapi",
@@ -812,6 +857,11 @@ class TestLiteLLMProvider(unittest.TestCase):
             api_route.model_docs_url,
             "https://www.api-route.com/pricing",
         )
+        coarena = get_llm_provider("coarena")
+        self.assertEqual(coarena.api_key_url, "https://coarena.ai/account/api")
+        self.assertEqual(coarena.default_model, "claude-sonnet-5-5")
+        self.assertEqual(coarena.default_base_url, "https://coarena.ai/api/v1")
+        self.assertEqual(coarena.adapter, "openai_compatible")
 
     def test_provider_registry_uses_conventional_locale_and_config_keys(self):
         """统一命名规则可避免 WebUI 为每个 Provider 增加硬编码映射。"""

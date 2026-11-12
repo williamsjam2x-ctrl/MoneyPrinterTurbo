@@ -506,6 +506,8 @@
     "Configure Providers": "Configura",
     "Active Provider": "En ús: {provider}",
     "No Configured Providers": "Encara no hi ha proveïdors configurats.",
-    "Provider Configuration Changed": "La configuració ha canviat. Revisa aquest proveïdor a la seva configuració."
+    "Provider Configuration Changed": "La configuració ha canviat. Revisa aquest proveïdor a la seva configuració.",
+    "llm_provider_label.coarena": "Coarena",
+    "llm_provider_tips.coarena": "##### Coarena\n- **API Key**: create a personal key with only the `inference:write` scope. [Coarena API page]({api_key_url}). Keep it in the private server-side config.toml or secret manager.\n- **Base Url**: https://coarena.ai/api/v1\n- **Model Name**: use an exact ID from https://coarena.ai/docs. The initial default is claude-sonnet-5-5.\n- **Privacy**: Coarena stores every prompt and response and may license them in datasets. Do not send sensitive or confidential content.\n- Keep this MoneyPrinterTurbo instance private. Never place the Coarena key in browser JavaScript, a public repository, screenshots, or chat."
   }
 }
