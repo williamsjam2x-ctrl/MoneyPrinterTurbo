@@ -612,6 +612,17 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://api.uberllm.dev/v1",
         model_docs_url="https://uberllm.dev/models",
     ),
+    # Coarena OpenAI-compatible Model API.
+    # Coarena stores every prompt and response and may license the data;
+    # the provider must never receive sensitive or private material.
+    LLMProviderSpec(
+        "coarena",
+        "Coarena",
+        api_key_url="https://coarena.ai/account/api",
+        default_model="claude-sonnet-5-5",
+        default_base_url="https://coarena.ai/api/v1",
+        model_docs_url="https://coarena.ai/docs",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",
