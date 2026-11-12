@@ -67,10 +67,17 @@ the WebUI.
 ## Privacy and cost constraints
 
 Coarena's current Model API documentation says every request and response is
-stored regardless of the client's `store` setting. Its terms also describe
-potential dataset licensing. Do not submit passwords, API secrets, private
+stored regardless of the client's `store` setting. Its terms say submitted
+prompts and replies remain in Coarena's data and datasets and cannot be withdrawn
+later, except where the law requires deletion. Do not submit passwords, API
+secrets, financial or government identifiers, health information, private
 customer data, personal records, unpublished confidential material, or other
 sensitive information through Coarena.
+
+Before the first model request, sign in to the Coarena account page and confirm
+that the current Model API terms have been accepted. Until accepted, the API
+returns HTTP 403 with `model_api_terms_required`. Coarena's current terms also
+require Model API users to be at least 18 years old.
 
 The documented free allowance is up to $5 of model use per day, with 30
 requests per minute and 2 concurrent requests. An account-level daily request
