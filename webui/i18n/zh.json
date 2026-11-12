@@ -2,6 +2,8 @@
   "Language": "简体中文",
   "Translation": {
     "llm_provider_label.openai_codex": "OpenAI - Codex",
+    "llm_provider_label.coarena": "Coarena",
+    "llm_provider_tips.coarena": "##### Coarena\n- **API Key**：在 Coarena 账户页面创建个人密钥，尽量只授予 `inference:write` 权限，并设置较短有效期。仅将密钥保存在 MoneyPrinterTurbo 服务端的私有 config.toml 或密钥管理器中。\n- **Base Url**：https://coarena.ai/api/v1\n- **Model Name**：使用 https://coarena.ai/docs 中的准确模型 ID，初始默认值为 claude-sonnet-5-5。\n- **隐私**：Coarena 会保存每次请求和回复，并可能将数据用于授权数据集。不要发送密码、API 密钥、客户资料或机密内容。\n- 请限制 MoneyPrinterTurbo 整个 WebUI 的访问权限。不要把 Coarena 密钥放入浏览器 JavaScript、公开仓库、截图或聊天中。",
     "codex.oauth.login": "通过验证码连接 ChatGPT",
     "codex.oauth.disconnect": "断开 ChatGPT 连接",
     "codex.oauth.connected": "已连接 ChatGPT 账号。请求将使用你的 Codex 配额。",
