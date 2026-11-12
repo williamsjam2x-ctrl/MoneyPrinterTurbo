@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.models.llm_provider import LLM_PROVIDER_REGISTRY
+from app.models.llm_provider import LLM_PROVIDER_REGISTRY, get_llm_provider
 from webui import settings_providers
 
 GROUPS = {
@@ -271,3 +271,21 @@ def test_infistar_video_does_not_accept_separate_llm_key():
         {"infistar_api_key": "llm-only-key"}, GROUPS
     )
     assert "infistar" not in result["ai_video"]
+
+
+
+def test_coarena_is_registered_with_its_official_openai_compatible_endpoint():
+    provider = get_llm_provider("coarena")
+    assert provider is not None
+    assert provider.adapter == "openai_compatible"
+    assert provider.requires_api_key is True
+    assert provider.default_base_url == "https://coarena.ai/api/v1"
+    assert provider.default_model == "claude-sonnet-5-5"
+    assert provider.api_key_url == "https://coarena.ai/account/api"
+    assert provider.model_docs_url == "https://coarena.ai/docs"
+
+    # A synthetic key is sufficient for local readiness detection. This test
+    # intentionally makes no network request and never uses a real credential.
+    assert "coarena" in settings_providers.configured_llm_providers(
+        {"coarena_api_key": "synthetic-test-key"}, OAUTH
+    )
