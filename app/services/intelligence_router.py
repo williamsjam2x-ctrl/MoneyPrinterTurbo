@@ -45,6 +45,12 @@ PROVIDERS: dict[str, ProviderConfig] = {
         api_key_env="APINEX_API_KEY",
         model_env="APINEX_MODEL",
     ),
+    "coarena": ProviderConfig(
+        provider_id="coarena",
+        base_url="https://coarena.ai/api/v1",
+        api_key_env="COARENA_API_KEY",
+        model_env="COARENA_MODEL",
+    ),
     "openai": ProviderConfig(
         provider_id="openai",
         base_url="https://api.openai.com/v1",
@@ -56,7 +62,7 @@ PROVIDERS: dict[str, ProviderConfig] = {
 ALLOWED_TASKS = frozenset(
     {"research_plan", "topic_score", "script_draft", "script_review", "quality_check"}
 )
-DEFAULT_PROVIDER_ORDER = ("codecraft", "apinex", "openai")
+DEFAULT_PROVIDER_ORDER = ("codecraft", "apinex", "coarena", "openai")
 MAX_PROMPT_CHARS = 30_000
 DEFAULT_MAX_OUTPUT_TOKENS = 1_200
 # CodeCraft documents that max_tokens values below 2048 are raised to 2048.
@@ -121,8 +127,12 @@ def generate_text(
     Fallback happens only after an actual request failure; unconfigured providers
     are skipped without making a network request. CodeCraft requires a minimum
     max_tokens request value of 2048, which is also the router's hard ceiling.
-    OpenAI receives max_completion_tokens because max_tokens is not compatible
-    with its o-series reasoning models. Sampling parameters are omitted unless
+    Coarena is OpenAI-compatible at /api/v1. Its terms state that prompts,
+    replies, reasoning and tool calls are stored and may be licensed in datasets;
+    do not send sensitive data. Coarena may substitute a lower-cost model, so
+    the returned model field is recorded when supplied. OpenAI receives
+    max_completion_tokens because max_tokens is not compatible with its
+    o-series reasoning models. Sampling parameters are omitted unless
     model-specific support is known, to avoid incompatible-parameter failures.
     """
     if not isinstance(task, str) or task not in ALLOWED_TASKS:
@@ -184,7 +194,7 @@ def generate_text(
             return TextResult(
                 content=content.strip(),
                 provider=provider_id,
-                model=model,
+                model=getattr(response, "model", None) or model,
                 prompt_tokens=getattr(usage, "prompt_tokens", None),
                 completion_tokens=getattr(usage, "completion_tokens", None),
                 output_token_limit_sent=max_tokens_sent,
