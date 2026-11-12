@@ -2,6 +2,8 @@
   "Language": "English",
   "Translation": {
     "llm_provider_label.openai_codex": "OpenAI - Codex",
+    "llm_provider_label.coarena": "Coarena",
+    "llm_provider_tips.coarena": "##### Coarena\n- **API Key**: create a personal key with only the `inference:write` scope. Keep it in the private server-side config.toml or secret manager.\n- **Base URL**: https://coarena.ai/api/v1\n- **Model Name**: use an exact ID from https://coarena.ai/docs. The initial default is claude-sonnet-5-5.\n- **Privacy**: Coarena stores every prompt and response and may license them in datasets. Do not send sensitive or confidential content.\n- Keep this MoneyPrinterTurbo instance private. Never place the Coarena key in browser JavaScript, a public repository, screenshots, or chat.",
     "codex.oauth.login": "Connect ChatGPT with a code",
     "codex.oauth.disconnect": "Disconnect ChatGPT",
     "codex.oauth.connected": "ChatGPT account connected. Requests use your Codex allowance.",
