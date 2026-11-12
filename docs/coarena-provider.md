@@ -78,6 +78,12 @@ limit may also apply. These are Coarena account limits, not a guarantee of
 unlimited or permanent free usage. Check your limits and usage from the
 Coarena API page.
 
+Coarena also says its free Model API may route some requests to a lower-cost
+model than the one requested. The actual model is reported in the response and
+in Coarena's request history. MoneyPrinterTurbo currently consumes the returned
+text without displaying the actual Coarena model in its main UI, so check the
+Coarena request history when model identity matters.
+
 ## Safe connection test
 
 1. Configure the key only in the private MoneyPrinterTurbo runtime.
